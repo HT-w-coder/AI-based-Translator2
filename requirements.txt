@@ -3,3 +3,24 @@ assemblyai
 translate
 elevenlabs
 python-dotenv
+# --- Web UI ---
+streamlit>=1.35.0
+
+# --- Machine Learning / AI ---
+tensorflow==2.16.1
+torch>=2.2.0
+transformers>=4.40.0
+sentencepiece
+
+# --- Data Handling ---
+pandas>=2.2.2
+numpy>=1.26.4
+
+# --- Utilities ---
+requests
+backoff>=2.2.1
+sentry-sdk>=1.45.0
+
+# --- (Optional) API support ---
+fastapi
+uvicorn
