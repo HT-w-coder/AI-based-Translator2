@@ -20,5 +20,7 @@ sentry-sdk>=1.45.0
 # --- (Optional) API support ---
 fastapi
 uvicorn
+prometheus_client
+
 
 
