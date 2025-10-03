@@ -14,10 +14,11 @@ numpy>=1.26.4
 
 # --- Utilities ---
 requests
-backoff>=2.2.1
+backoff
 sentry-sdk>=1.45.0
 
 # --- (Optional) API support ---
 fastapi
 uvicorn
+
 
