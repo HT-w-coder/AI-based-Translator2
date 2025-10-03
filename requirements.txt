@@ -16,11 +16,13 @@ numpy>=1.26.4
 requests
 backoff
 sentry-sdk>=1.45.0
+whisper
 
 # --- (Optional) API support ---
 fastapi
 uvicorn
 prometheus_client
+
 
 
 
