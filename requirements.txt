@@ -11,8 +11,6 @@ elevenlabs==0.2.4
 deep-translator==1.10.0
 
 # Audio handling
-numpy==1.27.6
-soundfile==0.12.1
-pydub==0.25.1
-
-# Optional: for temporary file handling
+numpy>=1.26.4,<1.27
+soundfile>=0.12.1
+pydub>=0.25.1
