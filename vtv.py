@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 app.py – Multilingual Voice Translator (2025 Edition)
 """
@@ -24,7 +23,8 @@ import whisper
 from translate import Translator
 from elevenlabs import VoiceSettings
 from elevenlabs.client import ElevenLabs
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings  # ✅ FIXED: moved to pydantic-settings
+from pydantic import Field
 from fastapi import FastAPI
 from starlette.middleware.wsgi import WSGIMiddleware
 from dotenv import load_dotenv
@@ -45,8 +45,8 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
 
-settings = Settings()
 load_dotenv()
+settings = Settings()
 
 # ─── Sentry ───────────────────────────────────────────────────────────────
 if settings.SENTRY_DSN:
@@ -106,8 +106,6 @@ async def periodic_cleanup():
         await cleanup_cache()
         await asyncio.sleep(settings.AUDIO_TTL_SECONDS)
 
-asyncio.get_event_loop().create_task(periodic_cleanup())
-
 # ─── Whisper fallback loader ───────────────────────────────────────────────────
 _whisper_model = whisper.load_model("small")
 
@@ -145,7 +143,8 @@ async def text_to_speech(text: str, lang: str, rec_id: str) -> Path:
     )
     out = settings.CACHE_DIR / f"{rec_id}-{lang}.mp3"
     with open(out, "wb") as f:
-        async for chunk in response:
+        # Use sync iteration to avoid ElevenLabs async streaming mismatch
+        for chunk in response:
             if chunk:
                 f.write(chunk)
     logging.info(f"TTS saved: {out.name}")
@@ -180,6 +179,10 @@ async def voice_to_voice(path: str, langs: list[str]) -> list[str]:
 # ─── FastAPI for Health & Metrics ────────────────────────────────────────────
 fastapi_app = FastAPI(title="Multilingual Voice Translator API")
 
+@fastapi_app.on_event("startup")
+async def on_startup():
+    asyncio.create_task(periodic_cleanup())
+
 @fastapi_app.get("/health")
 async def health_check():
     return {"status": "ok"}
@@ -202,7 +205,7 @@ with gr.Blocks(css="styles.css") as gradio_ui:
     for lg in settings.TARGET_LANGS:
         outputs += [
             gr.Audio(label=f"🔊 {lg.upper()}", interactive=False),
-            gr.Markdown(label=f"✏️ {lg.upper()} Translation")
+            gr.Markdown(f"✏️ {lg.upper()} Translation")  # ✅ FIXED: removed 'label' param
         ]
     outputs.append(gr.File(label="📦 Download All Translations (.zip)"))
 
