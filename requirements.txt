@@ -9,7 +9,7 @@ transformers>=4.40.0
 sentencepiece
 gradio
 assemblyai
-Pydantic
+pydantic-settings
 
 # --- Data Handling ---
 pandas>=2.2.2
@@ -27,6 +27,7 @@ elevenlabs
 fastapi
 uvicorn
 prometheus_client
+
 
 
 
