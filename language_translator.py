@@ -3,12 +3,25 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-# Assuming these are defined elsewhere in the full code:
-# - SOS_token: int, the SOS token index
-# - device: torch.device
-# - input_vocab: vocabulary for input, len(input_vocab) = input_size
-# - output_vocab: vocabulary for output, len(output_vocab) = output_size
-# - data: list of (input_seq_tensor, target_seq_tensor) pairs, each tensor 1D with same lengths across dataset
+# Define constants and dummies (these would typically be loaded from data preprocessing)
+SOS_token = 0  # Start-of-sequence token
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Dummy vocabularies (in a real scenario, these would be built from your training data)
+input_vocab_size = 10000  # Example size for input vocabulary
+output_vocab_size = 10000  # Example size for output vocabulary
+input_vocab = {f"word_{i}": i for i in range(input_vocab_size)}  # Dummy input vocab dict
+output_vocab = {f"word_{i}": i for i in range(output_vocab_size)}  # Dummy output vocab dict
+
+# Dummy data: list of (input_seq, target_seq) where each is a tensor of shape (seq_len,)
+# For simplicity, assume all sequences are length 10, batch_size=32 will pad if needed, but here fixed length
+seq_len = 10
+num_samples = 1000  # Enough for a few batches
+data = []
+for _ in range(num_samples):
+    input_seq = torch.randint(1, input_vocab_size, (seq_len,))  # Random input sequence (avoid 0 if 0 is padding/SOS)
+    target_seq = torch.randint(1, output_vocab_size, (seq_len,))  # Random target sequence
+    data.append((input_seq, target_seq))
 
 # Define the Encoder model
 class Encoder(nn.Module):
@@ -21,7 +34,7 @@ class Encoder(nn.Module):
     def forward(self, input_seq, hidden):
         # input_seq: (batch_size, src_len)
         embedded = self.embedding(input_seq)  # (batch_size, src_len, hidden_size)
-        embedded = embedded.transpose(0, 1)  # (src_len, batch_size, hidden_size)
+        embedded = embedded.transpose(0, 1)  # (src_len, batch_size, hidden_size) for GRU
         output, hidden = self.gru(embedded, hidden)
         return output, hidden
 
@@ -102,8 +115,8 @@ def train(model, optimizer, criterion, input_seq, target_seq):
 # Define the main function
 def main():
     # Define hyperparameters
-    input_size = len(input_vocab)
-    output_size = len(output_vocab)
+    input_size = input_vocab_size  # Use the dummy size
+    output_size = output_vocab_size  # Use the dummy size
     hidden_size = 256
     learning_rate = 0.01
     batch_size = 32
@@ -125,12 +138,17 @@ def main():
 
     # Training loop
     for epoch in range(num_epochs):
+        total_loss = 0
         for i, (input_seq, target_seq) in enumerate(dataloader):
             loss = train(model, optimizer, criterion, input_seq, target_seq)
-            print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(dataloader)}], Loss: {loss:.4f}")
+            total_loss += loss
+            if (i + 1) % 10 == 0:  # Print every 10 steps to reduce output
+                print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(dataloader)}], Loss: {loss:.4f}")
+        print(f"Epoch [{epoch+1}/{num_epochs}] Average Loss: {total_loss / len(dataloader):.4f}")
 
     # Save the trained model
     torch.save(model.state_dict(), 'translation_model.pt')
+    print("Model saved as 'translation_model.pt'")
 
 # Run the main function
 if __name__ == '__main__':
