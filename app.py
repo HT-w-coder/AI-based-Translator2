@@ -4,9 +4,11 @@ import tempfile
 from deep_translator import GoogleTranslator
 from elevenlabs import generate, set_api_key
 from pathlib import Path
+from pydub import AudioSegment
+import io
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="Multilingual Assistant 🌍", layout="wide")
+st.set_page_config(page_title="Multilingual Voice Assistant 🌍", layout="wide")
 
 set_api_key("YOUR_API_KEY")  # Replace with your ElevenLabs API key
 VOICE_NAME = "Rachel"       # ElevenLabs voice
@@ -28,11 +30,16 @@ LANGUAGES = {
 }
 
 # ---------------- FUNCTIONS ----------------
-def translate_audio(audio_bytes, input_lang_code, output_lang_code):
-    # Save uploaded audio to a temporary file
+def convert_to_wav(audio_bytes):
+    """Convert uploaded audio to WAV format compatible with Whisper"""
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-        f.write(audio_bytes)
-        temp_audio_path = f.name
+        audio.export(f.name, format="wav")
+        return f.name
+
+def translate_audio(audio_bytes, input_lang_code, output_lang_code):
+    # Convert audio to WAV
+    temp_audio_path = convert_to_wav(audio_bytes)
 
     # Transcribe audio
     text = model.transcribe(temp_audio_path, language=input_lang_code)["text"]
