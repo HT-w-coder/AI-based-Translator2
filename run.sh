@@ -38,6 +38,7 @@ pip install --upgrade pip
 
 # Install requirements
 echo "📥 Installing dependencies..."
+pip install --upgrade pip
 pip install -r requirements.txt
 
 # Check if installation was successful

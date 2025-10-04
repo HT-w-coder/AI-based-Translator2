@@ -32,6 +32,8 @@ A powerful, privacy-focused multilingual translator with text-to-speech capabili
    ```bash
    pip install -r requirements.txt
    ```
+   
+   **Having installation issues?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions.
 
 3. **Run the application**
    ```bash
@@ -41,6 +43,14 @@ A powerful, privacy-focused multilingual translator with text-to-speech capabili
 4. **Access the application**
    - Open your web browser and go to `http://localhost:8501`
    - The application will automatically download required AI models on first use
+
+### Quick Start (if you have issues)
+
+For a minimal installation that just works:
+```bash
+pip install streamlit torch transformers langdetect numpy
+streamlit run translator_app.py
+```
 
 ## 📋 Requirements
 

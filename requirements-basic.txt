@@ -1,0 +1,5 @@
+# Basic requirements - install these first
+streamlit
+torch
+transformers
+numpy
