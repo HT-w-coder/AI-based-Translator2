@@ -1,33 +1,13 @@
-# Core
 fastapi
 uvicorn
-
-# Web UI
 gradio
-
-# Transcription
 assemblyai
-whisper @ git+https://github.com/openai/whisper.git  # official repo
-
-# Translation
+whisper @ git+https://github.com/openai/whisper.git
 translate
-
-# Text-to-Speech
 elevenlabs
-
-# Settings & Environment
 pydantic>=2.0
 pydantic-settings
 python-dotenv
-
-# Utilities
 backoff
 prometheus-client
 sentry-sdk
-
-# Database
-sqlite3  # comes with Python, no pip install needed
-
-# Optional but recommended
-aiofiles  # if serving audio files asynchronously
-
