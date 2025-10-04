@@ -1,4 +1,13 @@
 import streamlit as st
+
+# Configure Streamlit page (MUST be first Streamlit command)
+st.set_page_config(
+    page_title="AI Translator & TTS", 
+    page_icon="🌐",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 from google.cloud import texttospeech
 from google.cloud import translate_v2 as translate
 from dotenv import load_dotenv
@@ -16,14 +25,6 @@ if not GOOGLE_CREDS or not os.path.exists(GOOGLE_CREDS):
     st.stop()
 else:
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_CREDS
-
-# Configure Streamlit page
-st.set_page_config(
-    page_title="AI Translator & TTS", 
-    page_icon="🌐",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # App header
 st.title("🌐 AI-Based Translator & Text-to-Speech")
