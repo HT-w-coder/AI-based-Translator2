@@ -1,4 +1,4 @@
-# --- Core Frameworks ---
+# --- Core Frameworks --- #
 fastapi
 uvicorn
 gradio
@@ -27,7 +27,7 @@ sentry-sdk
 tensorflow==2.16.1
 
 # --- NumPy (locked for TF compatibility) ---
-numpy<2.0
+numpy<2.0.0,>=1.23.5
 
 # --- Optional helper libraries ---
 aiofiles
