@@ -1,7 +1,6 @@
 gradio==2.2.15
 
 # Reimportar lo necesario tras el reinicio
-pkg_resources
 
 # Lista de librerías necesarias
 
@@ -9,6 +8,7 @@ pkg_resources
     openai-whisper
     deep-translator
     elevenlabs
+
 
 
 
