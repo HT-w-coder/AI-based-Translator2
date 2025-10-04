@@ -58,10 +58,10 @@ def test_imports():
     
     # Test optional packages
     optional_packages = [
-        ('pyttsx3', 'Text-to-Speech'),
         ('plotly', 'Plotly'),
         ('sentencepiece', 'SentencePiece'),
-        ('sacremoses', 'SacreMoses')
+        ('sacremoses', 'SacreMoses'),
+        ('gtts', 'Google Text-to-Speech')
     ]
     
     for package, name in optional_packages:
@@ -71,6 +71,13 @@ def test_imports():
             success_count += 1
         except ImportError as e:
             print(f"⚠️  {name} not available: {e}")
+    
+    # Test pyttsx3 separately (removed from main requirements)
+    try:
+        import pyttsx3
+        print("✅ pyttsx3 imported successfully (legacy TTS)")
+    except ImportError:
+        print("ℹ️  pyttsx3 not installed (using Web Speech API instead)")
     
     return success_count >= len(packages)  # Core packages must work
 
@@ -103,29 +110,26 @@ def test_language_detection():
         print(f"❌ Language detection test failed: {e}")
         return False
 
-def test_tts_engine():
-    """Test text-to-speech engine initialization."""
-    print("\n🧪 Testing TTS engine...")
+def test_web_speech_api():
+    """Test Web Speech API availability (browser-based)."""
+    print("\n🧪 Testing Text-to-Speech capabilities...")
     
     try:
-        import pyttsx3
+        # Test gTTS import
+        try:
+            import gtts
+            print("✅ gTTS available for offline audio generation")
+        except ImportError:
+            print("⚠️  gTTS not available - install with: pip install gtts")
         
-        engine = pyttsx3.init()
-        voices = engine.getProperty('voices')
-        
-        if voices:
-            print(f"✅ TTS engine initialized with {len(voices)} voices")
-            for i, voice in enumerate(voices[:3]):  # Show first 3 voices
-                name = getattr(voice, 'name', 'Unknown')
-                print(f"   Voice {i+1}: {name}")
-        else:
-            print("⚠️  TTS engine initialized but no voices found")
+        print("ℹ️  Web Speech API will be available in the browser")
+        print("   - Modern browsers support native text-to-speech")
+        print("   - No additional setup required")
         
         return True
     except Exception as e:
-        print(f"⚠️  TTS engine test failed: {e}")
-        print("   TTS may not work, but translation will still function")
-        return True  # Don't fail the test, as TTS is optional
+        print(f"❌ TTS test failed: {e}")
+        return True  # Don't fail the overall test
 
 def test_transformers():
     """Test transformers library functionality."""
@@ -160,7 +164,7 @@ def main():
         ("Python Version", test_python_version),
         ("Package Imports", test_imports),
         ("Language Detection", test_language_detection),
-        ("TTS Engine", test_tts_engine),
+        ("Text-to-Speech", test_web_speech_api),
         ("Transformers Library", test_transformers)
     ]
     

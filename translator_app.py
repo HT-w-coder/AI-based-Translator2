@@ -10,14 +10,22 @@ import tempfile
 import time
 from pathlib import Path
 import io
+import base64
+import json
 
 import streamlit as st
 from transformers import MarianMTModel, MarianTokenizer
-import pyttsx3
 from langdetect import detect, DetectorFactory
 import torch
 import plotly.graph_objects as go
 import plotly.express as px
+
+# Try to import gTTS as a fallback option
+try:
+    from gtts import gTTS
+    GTTS_AVAILABLE = True
+except ImportError:
+    GTTS_AVAILABLE = False
 
 # Set seed for consistent language detection
 DetectorFactory.seed = 0
@@ -97,7 +105,90 @@ st.markdown("""
         border-radius: 6px;
         margin: 0.5rem 0;
     }
+    
+    .tts-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        margin: 4px;
+        transition: all 0.3s ease;
+    }
+    
+    .tts-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .audio-player {
+        margin: 10px 0;
+        width: 100%;
+    }
 </style>
+
+<script>
+// Web Speech API Text-to-Speech functionality
+window.speechSynthesis = window.speechSynthesis || {};
+
+function speakText(text, lang, rate = 1, pitch = 1) {
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = getVoiceLanguage(lang);
+        utterance.rate = rate;
+        utterance.pitch = pitch;
+        utterance.volume = 1;
+        
+        // Try to find a voice for the specified language
+        const voices = window.speechSynthesis.getVoices();
+        const voice = voices.find(v => v.lang.startsWith(utterance.lang));
+        if (voice) {
+            utterance.voice = voice;
+        }
+        
+        window.speechSynthesis.speak(utterance);
+        
+        return true;
+    } else {
+        alert('Text-to-speech is not supported in your browser');
+        return false;
+    }
+}
+
+function getVoiceLanguage(langCode) {
+    const langMap = {
+        'en': 'en-US',
+        'es': 'es-ES',
+        'fr': 'fr-FR',
+        'de': 'de-DE',
+        'it': 'it-IT',
+        'pt': 'pt-PT',
+        'ru': 'ru-RU',
+        'zh': 'zh-CN',
+        'ja': 'ja-JP',
+        'ko': 'ko-KR',
+        'ar': 'ar-SA',
+        'hi': 'hi-IN'
+    };
+    return langMap[langCode] || 'en-US';
+}
+
+function stopSpeech() {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+}
+
+// Ensure voices are loaded
+window.speechSynthesis.onvoiceschanged = function() {
+    console.log('Voices loaded:', window.speechSynthesis.getVoices().length);
+};
+</script>
 """, unsafe_allow_html=True)
 
 class MultilingualTranslator:
@@ -216,104 +307,124 @@ class MultilingualTranslator:
             return f"Translation error: {str(e)}"
 
 class TextToSpeech:
-    """Handles text-to-speech conversion using pyttsx3."""
+    """Handles text-to-speech conversion using Web Speech API and gTTS fallback."""
     
     def __init__(self):
-        try:
-            self.engine = pyttsx3.init()
-            self.setup_engine()
-            self.available = True
-        except Exception as e:
-            st.warning(f"TTS engine initialization failed: {e}")
-            self.available = False
+        self.available = True  # Web Speech API is available in most browsers
         
-    def setup_engine(self):
-        """Configure the TTS engine with default settings."""
-        if not self.available:
+    def create_speech_button(self, text, language_code, button_text="🔊 Speak"):
+        """Create a button that uses Web Speech API for text-to-speech."""
+        if not text.strip():
+            return st.button(button_text, disabled=True)
+        
+        # Create unique key for this button
+        button_key = f"tts_{hash(text)}{language_code}"
+        
+        # JavaScript to handle TTS
+        speech_js = f"""
+        <button onclick="speakText('{text.replace("'", "\\'")}', '{language_code}')" 
+                class="tts-button" 
+                title="Click to speak this text">
+            {button_text}
+        </button>
+        """
+        
+        st.markdown(speech_js, unsafe_allow_html=True)
+        
+    def create_audio_from_text(self, text, language_code):
+        """Create an audio file using gTTS if available."""
+        if not GTTS_AVAILABLE:
+            return None
+            
+        try:
+            # Map language codes to gTTS supported languages
+            gtts_lang_map = {
+                'en': 'en',
+                'es': 'es',
+                'fr': 'fr',
+                'de': 'de',
+                'it': 'it',
+                'pt': 'pt',
+                'ru': 'ru',
+                'zh': 'zh',
+                'ja': 'ja',
+                'ko': 'ko',
+                'ar': 'ar',
+                'hi': 'hi'
+            }
+            
+            gtts_lang = gtts_lang_map.get(language_code, 'en')
+            
+            # Create gTTS object
+            tts = gTTS(text=text, lang=gtts_lang, slow=False)
+            
+            # Save to bytes buffer
+            audio_buffer = io.BytesIO()
+            tts.write_to_fp(audio_buffer)
+            audio_buffer.seek(0)
+            
+            return audio_buffer.getvalue()
+            
+        except Exception as e:
+            st.error(f"Error generating audio: {str(e)}")
+            return None
+    
+    def display_tts_options(self, text, language_code, unique_key=""):
+        """Display multiple TTS options."""
+        if not text.strip():
+            st.info("Enter text to enable speech synthesis")
             return
             
-        # Set properties
-        self.engine.setProperty('rate', 150)  # Speed of speech
-        self.engine.setProperty('volume', 0.9)  # Volume level (0.0 to 1.0)
+        col1, col2, col3 = st.columns([1, 1, 1])
         
-        # Get available voices
-        voices = self.engine.getProperty('voices')
-        if voices:
-            self.engine.setProperty('voice', voices[0].id)
+        with col1:
+            # Web Speech API button (works in browser)
+            self.create_speech_button(text, language_code, "🔊 Browser TTS")
+        
+        with col2:
+            # Stop speech button
+            stop_js = """
+            <button onclick="stopSpeech()" 
+                    class="tts-button" 
+                    style="background: #ef4444;"
+                    title="Stop speech">
+                ⏹️ Stop
+            </button>
+            """
+            st.markdown(stop_js, unsafe_allow_html=True)
+        
+        with col3:
+            # gTTS audio file generation (if available)
+            if GTTS_AVAILABLE:
+                if st.button(f"📥 Download Audio", key=f"download_audio_{unique_key}"):
+                    with st.spinner("Generating audio file..."):
+                        audio_data = self.create_audio_from_text(text, language_code)
+                        if audio_data:
+                            st.audio(audio_data, format='audio/mp3')
+                            
+                            # Create download link
+                            b64 = base64.b64encode(audio_data).decode()
+                            href = f'<a href="data:audio/mp3;base64,{b64}" download="speech.mp3">Download MP3</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+            else:
+                st.info("Install gTTS for audio download: `pip install gtts`")
     
-    def get_available_voices(self):
-        """Get list of available voices."""
-        if not self.available:
-            return []
-            
-        voices = self.engine.getProperty('voices')
-        voice_list = []
-        
-        for voice in voices:
-            voice_info = {
-                'id': voice.id,
-                'name': voice.name,
-                'languages': getattr(voice, 'languages', [])
-            }
-            voice_list.append(voice_info)
-        
-        return voice_list
-    
-    def set_voice_for_language(self, language_code):
-        """Set appropriate voice for the given language."""
-        if not self.available:
-            return False
-            
-        voices = self.engine.getProperty('voices')
-        
-        # Language mapping for voice selection
-        language_voice_mapping = {
-            'en': ['english', 'en_'],
-            'es': ['spanish', 'es_'],
-            'fr': ['french', 'fr_'],
-            'de': ['german', 'de_'],
-            'it': ['italian', 'it_'],
-            'pt': ['portuguese', 'pt_'],
-            'ru': ['russian', 'ru_'],
-            'zh': ['chinese', 'zh_', 'mandarin'],
-            'ja': ['japanese', 'ja_'],
-            'ko': ['korean', 'ko_'],
-            'ar': ['arabic', 'ar_'],
-            'hi': ['hindi', 'hi_']
+    def get_supported_languages(self):
+        """Get list of supported languages for TTS."""
+        return {
+            'en': 'English',
+            'es': 'Spanish', 
+            'fr': 'French',
+            'de': 'German',
+            'it': 'Italian',
+            'pt': 'Portuguese',
+            'ru': 'Russian',
+            'zh': 'Chinese',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'ar': 'Arabic',
+            'hi': 'Hindi'
         }
-        
-        if language_code in language_voice_mapping:
-            search_terms = language_voice_mapping[language_code]
-            
-            for voice in voices:
-                voice_name_lower = voice.name.lower()
-                if any(term in voice_name_lower for term in search_terms):
-                    self.engine.setProperty('voice', voice.id)
-                    return True
-        
-        # Default to first available voice if no match found
-        if voices:
-            self.engine.setProperty('voice', voices[0].id)
-        
-        return False
-    
-    def speak_to_file(self, text, filename, language_code='en'):
-        """Convert text to speech and save to file."""
-        if not self.available:
-            return False
-            
-        try:
-            # Set appropriate voice for language
-            self.set_voice_for_language(language_code)
-            
-            # Save to file
-            self.engine.save_to_file(text, filename)
-            self.engine.runAndWait()
-            
-            return True
-        except Exception as e:
-            st.error(f"TTS Error: {str(e)}")
-            return False
 
 # Initialize session state
 if 'translator' not in st.session_state:
@@ -351,7 +462,7 @@ def main():
         st.info(f"**Device:** {device}")
         
         # TTS status
-        tts_status = "✅ Available" if st.session_state.tts_engine.available else "❌ Unavailable"
+        tts_status = "✅ Web Speech API + gTTS" if GTTS_AVAILABLE else "✅ Web Speech API"
         st.info(f"**Text-to-Speech:** {tts_status}")
         
         # Language statistics
@@ -443,22 +554,18 @@ def main():
                 st.caption(f"🔍 Detected: {detected_name}")
         
         # Translation button
-        col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
+        translate_btn = st.button(
+            "🔄 Translate",
+            type="primary",
+            disabled=not input_text.strip(),
+            use_container_width=True
+        )
         
-        with col_btn1:
-            translate_btn = st.button(
-                "🔄 Translate",
-                type="primary",
-                disabled=not input_text.strip(),
-                use_container_width=True
-            )
-        
-        with col_btn2:
-            speak_original_btn = st.button(
-                "🎵 Speak Original",
-                disabled=not input_text.strip() or not st.session_state.tts_engine.available,
-                use_container_width=True
-            )
+        # Text-to-Speech section for input
+        if input_text.strip():
+            st.subheader("🎵 Text-to-Speech - Original")
+            actual_source_lang = source_lang if source_lang != "auto" else detect_language(input_text)
+            st.session_state.tts_engine.display_tts_options(input_text, actual_source_lang, "original")
         
         # Translation logic
         if translate_btn and input_text.strip():
@@ -493,63 +600,13 @@ def main():
                 if len(st.session_state.translation_history) > 10:
                     st.session_state.translation_history = st.session_state.translation_history[:10]
                 
-                # Copy and speak buttons
-                col_action1, col_action2 = st.columns([1, 1])
+                # Display translation in code block for easy copying
+                st.code(translated_text, language=None)
                 
-                with col_action1:
-                    st.code(translated_text, language=None)
-                
-                with col_action2:
-                    if st.button("🎵 Speak Translation", key="speak_translation"):
-                        if st.session_state.tts_engine.available:
-                            with st.spinner("Generating speech..."):
-                                # Create temporary file
-                                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                                    success = st.session_state.tts_engine.speak_to_file(
-                                        translated_text, tmp_file.name, target_lang
-                                    )
-                                    
-                                    if success:
-                                        # Read the audio file
-                                        with open(tmp_file.name, 'rb') as audio_file:
-                                            audio_bytes = audio_file.read()
-                                        
-                                        st.audio(audio_bytes, format='audio/wav')
-                                        
-                                        # Clean up
-                                        os.unlink(tmp_file.name)
-                                    else:
-                                        st.error("Failed to generate speech")
-                        else:
-                            st.error("Text-to-speech not available")
+                # Text-to-Speech for translation
+                st.subheader("🎵 Text-to-Speech - Translation")
+                st.session_state.tts_engine.display_tts_options(translated_text, target_lang, "translation")
         
-        # Handle speak original
-        if speak_original_btn and input_text.strip():
-            if st.session_state.tts_engine.available:
-                with st.spinner("Generating speech..."):
-                    actual_source_lang = source_lang
-                    if source_lang == "auto":
-                        actual_source_lang = detect_language(input_text)
-                    
-                    # Create temporary file
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                        success = st.session_state.tts_engine.speak_to_file(
-                            input_text, tmp_file.name, actual_source_lang
-                        )
-                        
-                        if success:
-                            # Read the audio file
-                            with open(tmp_file.name, 'rb') as audio_file:
-                                audio_bytes = audio_file.read()
-                            
-                            st.audio(audio_bytes, format='audio/wav')
-                            
-                            # Clean up
-                            os.unlink(tmp_file.name)
-                        else:
-                            st.error("Failed to generate speech")
-            else:
-                st.error("Text-to-speech not available")
     
     with col2:
         st.header("📋 Translation History")
@@ -570,20 +627,12 @@ def main():
                             st.code(item['translated'])
                     
                     with col_hist2:
-                        if st.button("🎵 Speak", key=f"speak_hist_{i}"):
-                            if st.session_state.tts_engine.available:
-                                with st.spinner("Generating speech..."):
-                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                                        success = st.session_state.tts_engine.speak_to_file(
-                                            item['translated'], tmp_file.name, item['target_lang']
-                                        )
-                                        
-                                        if success:
-                                            with open(tmp_file.name, 'rb') as audio_file:
-                                                audio_bytes = audio_file.read()
-                                            
-                                            st.audio(audio_bytes, format='audio/wav')
-                                            os.unlink(tmp_file.name)
+                        # Use Web Speech API for history items
+                        st.session_state.tts_engine.create_speech_button(
+                            item['translated'], 
+                            item['target_lang'], 
+                            "🔊 Speak"
+                        )
         else:
             st.info("No translations yet. Start translating to see history here!")
     
