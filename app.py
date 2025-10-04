@@ -1,30 +1,32 @@
-from flask import Flask, request, render_template, Response
+import streamlit as st
 from google.cloud import texttospeech
 from google.cloud import translate_v2 as translate
-from loguru import logger
-import os
 from dotenv import load_dotenv
+import os
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+st.set_page_config(page_title="Translator & TTS", page_icon="🌐")
 
-# Dictionary to map language names to their respective codes
+st.title("🌐 Multilingual Translator & Text-to-Speech")
+
+# Dictionary to map language codes to Google TTS codes
 language_codes = {
     "en": "en-US",  # English
     "es": "es-ES",  # Spanish
     "fr": "fr-FR",  # French
     "de": "de-DE",  # German
-    "hi":"hi-IN"    #Hindi
-    # Add more language codes as needed
+    "hi": "hi-IN"   # Hindi
 }
 
+# Function to translate text
 def translate_text(text, target_language):
     translate_client = translate.Client()
     result = translate_client.translate(text, target_language=target_language)
     return result['translatedText']
 
+# Function to convert text to speech
 def convert_text_to_speech_google_cloud(text, language_code):
     client = texttospeech.TextToSpeechClient()
 
@@ -45,24 +47,26 @@ def convert_text_to_speech_google_cloud(text, language_code):
 
     return response.audio_content
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        text = request.form['text']
-        target_language = request.form['language']
+# Streamlit form
+with st.form("translator_form"):
+    text = st.text_area("Enter text to translate:")
+    target_language = st.selectbox(
+        "Select target language:",
+        options=list(language_codes.keys()),
+        format_func=lambda x: x.upper()  # Show uppercase for clarity
+    )
+    submitted = st.form_submit_button("Translate & Listen")
 
-        # Translate text to the target language
+if submitted and text.strip():
+    with st.spinner("Translating..."):
         translated_text = translate_text(text, target_language)
+    st.success("✅ Translation complete!")
+    st.write(f"**Translated Text ({target_language.upper()}):** {translated_text}")
 
-        # Get the appropriate language code for Google Cloud TTS
+    # Convert to speech
+    with st.spinner("Converting to speech..."):
         language_code = language_codes[target_language]
-
-        # Convert the translated text to speech using Google Cloud
         audio_content = convert_text_to_speech_google_cloud(translated_text, language_code)
 
-        return Response(audio_content, mimetype="audio/mpeg")
-
-    return render_template('index.html')
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    # Play audio in Streamlit
+    st.audio(audio_content, format="audio/mp3")
