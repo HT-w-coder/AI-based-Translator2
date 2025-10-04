@@ -1,16 +1,8 @@
-# Streamlit for the web interface
 streamlit==1.30.0
-
-# Whisper model for speech-to-text
 openai-whisper==20230314
-
-# ElevenLabs TTS
 elevenlabs==0.2.4
-
-# Google Translator API
 deep-translator==1.10.0
-
-# Audio handling
 numpy>=1.26.4,<1.27
 soundfile>=0.12.1
 pydub>=0.25.1
+pydantic<2.0   # Add this line to fix ElevenLabs issue
