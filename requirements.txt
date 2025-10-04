@@ -1,7 +1,7 @@
 gradio==2.2.15
 
 # Reimportar lo necesario tras el reinicio
-import pkg_resources
+pkg_resources
 
 # Lista de librerías necesarias
 required_packages = [
@@ -18,4 +18,5 @@ exact_requirements = [f"{pkg}=={installed_packages[pkg]}" for pkg in required_pa
 # Guardar en requirements.txt
 with open("/mnt/data/requirements.txt", "w") as f:
     f.write("\n".join(exact_requirements))
+
 
