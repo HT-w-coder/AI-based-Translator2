@@ -11,6 +11,7 @@ gradio
 assemblyai
 pydantic
 pydantic-settings
+BaseSettings
 
 # --- Data Handling ---
 pandas>=2.2.2
@@ -28,6 +29,7 @@ elevenlabs
 fastapi
 uvicorn
 prometheus_client
+
 
 
 
