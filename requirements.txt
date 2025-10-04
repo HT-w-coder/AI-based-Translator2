@@ -8,6 +8,7 @@ torch>=2.2.0
 transformers>=4.40.0
 sentencepiece
 gradio
+assemblyai
 
 # --- Data Handling ---
 pandas>=2.2.2
@@ -23,6 +24,7 @@ whisper
 fastapi
 uvicorn
 prometheus_client
+
 
 
 
