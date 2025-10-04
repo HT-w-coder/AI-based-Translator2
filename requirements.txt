@@ -1,6 +1,6 @@
 
 # --- Web UI ---
-streamlit>=1.35.0
+streamlit
 
 # --- Machine Learning / AI ---
 tensorflow==2.16.1
@@ -11,7 +11,7 @@ gradio
 assemblyai
 pydantic
 pydantic-settings
-BaseSettings
+
 
 # --- Data Handling ---
 pandas>=2.2.2
@@ -30,6 +30,7 @@ fastapi
 uvicorn
 prometheus_client
 --upgrade pip
+
 
 
 
