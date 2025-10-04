@@ -1,6 +1,6 @@
 import streamlit as st
 
-# Configure Streamlit page (MUST be first Streamlit command)
+# Configure Streamlit page (MUST be the very first Streamlit command)
 st.set_page_config(
     page_title="AI Translator & TTS", 
     page_icon="🌐",
@@ -17,14 +17,17 @@ import io
 # Load environment variables
 load_dotenv()
 
-# Set Google credentials from .env
+# Check Google credentials from .env BEFORE using any Streamlit commands
 GOOGLE_CREDS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-if not GOOGLE_CREDS or not os.path.exists(GOOGLE_CREDS):
+credentials_valid = GOOGLE_CREDS and os.path.exists(GOOGLE_CREDS)
+
+if not credentials_valid:
     st.error("⚠️ Service account JSON file not found. Please check your .env file configuration!")
     st.info("Make sure your .env file contains: GOOGLE_APPLICATION_CREDENTIALS=path/to/your/service-account.json")
     st.stop()
-else:
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_CREDS
+
+# Set the environment variable
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_CREDS
 
 # App header
 st.title("🌐 AI-Based Translator & Text-to-Speech")
