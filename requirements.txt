@@ -29,6 +29,8 @@ elevenlabs
 fastapi
 uvicorn
 prometheus_client
+--upgrade pip
+
 
 
 
