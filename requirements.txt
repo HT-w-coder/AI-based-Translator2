@@ -20,4 +20,6 @@ pydantic<2.0
 
 # Optional: ffmpeg wrapper for Python (helps pydub detect ffmpeg)
 ffmpeg-python>=0.2.0
+ffprobe
+
 
