@@ -3,13 +3,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-# Special tokens
-SOS_token = 0  # Start-of-sequence token index, must be in vocab
-EOS_token = 1  # End-of-sequence token index, must be in vocab
+# Define special tokens matching vocab indices
+SOS_token = 0
+EOS_token = 1
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Encoder model
 class Encoder(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(Encoder, self).__init__()
@@ -18,14 +17,13 @@ class Encoder(nn.Module):
         self.gru = nn.GRU(hidden_size, hidden_size)
 
     def forward(self, input_seq, hidden):
-        embedded = self.embedding(input_seq).view(1, input_seq.size(0), -1)  # seq_len=1 for stepwise input
+        embedded = self.embedding(input_seq).view(1, input_seq.size(0), -1)
         output, hidden = self.gru(embedded, hidden)
         return output, hidden
 
     def init_hidden(self, batch_size):
         return torch.zeros(1, batch_size, self.hidden_size, device=device)
 
-# Decoder model
 class Decoder(nn.Module):
     def __init__(self, hidden_size, output_size):
         super(Decoder, self).__init__()
@@ -41,7 +39,6 @@ class Decoder(nn.Module):
         output = self.softmax(self.out(output[0]))
         return output, hidden
 
-# Seq2Seq combining encoder and decoder
 class Seq2Seq(nn.Module):
     def __init__(self, encoder, decoder):
         super(Seq2Seq, self).__init__()
@@ -63,13 +60,12 @@ class Seq2Seq(nn.Module):
         for t in range(target_len):
             output, hidden = self.decoder(decoder_input, hidden)
             outputs[t] = output
-            teacher_force = True if torch.rand(1).item() < teacher_forcing_ratio else False
+            teacher_force = torch.rand(1).item() < teacher_forcing_ratio
             top1 = output.argmax(1)
             decoder_input = target_seq[t] if teacher_force and t < target_len else top1
 
         return outputs
 
-# Dataset class expects input as tuples of (input_tensor, target_tensor)
 class TranslationDataset(Dataset):
     def __init__(self, pairs):
         self.pairs = pairs
@@ -80,7 +76,6 @@ class TranslationDataset(Dataset):
     def __getitem__(self, index):
         return self.pairs[index]
 
-# Training function
 def train(model, optimizer, criterion, input_seq, target_seq):
     model.train()
     optimizer.zero_grad()
@@ -100,13 +95,11 @@ def train(model, optimizer, criterion, input_seq, target_seq):
     return loss.item()
 
 def main():
-    # Define your vocabularies and dataset here
-    # Example minimal vocab (add proper tokens and sizes reflecting your data)
+    # Define example vocabularies (replace with your real vocab sets)
     input_vocab = {'<sos>': 0, '<eos>': 1, 'hello': 2, 'world': 3}
     output_vocab = {'<sos>': 0, '<eos>': 1, 'hola': 2, 'mundo': 3}
 
-    # Example tokenized tensor pairs (seq_len, batch_size)
-    # Replace with real preprocessed tensors for your dataset
+    # Example tokenized tensor pairs (sequence length x batch size)
     data_pairs = [(
         torch.tensor([input_vocab['<sos>'], input_vocab['hello'], input_vocab['world'], input_vocab['<eos>']], dtype=torch.long),
         torch.tensor([output_vocab['<sos>'], output_vocab['hola'], output_vocab['mundo'], output_vocab['<eos>']], dtype=torch.long)
@@ -132,9 +125,8 @@ def main():
     for epoch in range(num_epochs):
         total_loss = 0
         for input_seq, target_seq in dataloader:
-            # reshape to (seq_len, batch_size)
-            input_seq = input_seq.transpose(0, 1)
-            target_seq = target_seq.transpose(0, 1)
+            input_seq = input_seq.view(-1, 1)  # (seq_len, batch_size)
+            target_seq = target_seq.view(-1, 1)
             loss = train(model, optimizer, criterion, input_seq, target_seq)
             total_loss += loss
         print(f"Epoch {epoch+1}/{num_epochs} - Loss: {total_loss/len(dataloader):.4f}")
