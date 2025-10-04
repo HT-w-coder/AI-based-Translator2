@@ -27,7 +27,8 @@ sentry-sdk
 tensorflow==2.16.1
 
 # --- NumPy (locked for TF compatibility) ---
-numpy<2.0,>=1.23.5
+numpy<2.0
 
 # --- Optional helper libraries ---
 aiofiles
+
