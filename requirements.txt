@@ -1,11 +1,9 @@
-streamlit
+streamlit==1.30.0
 openai-whisper==20230314
 elevenlabs==0.2.4
 deep-translator==1.10.0
 numpy>=1.26.4,<1.27
 soundfile>=0.12.1
-pydub
+pydub>=0.25.1
 pydantic<2.0
-ffmpeg-python
-
-
+ffmpeg-python>=0.2.0
