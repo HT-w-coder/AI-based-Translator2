@@ -4,30 +4,41 @@ import tempfile
 from deep_translator import GoogleTranslator
 from elevenlabs import generate, set_api_key
 from pathlib import Path
-import base64
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="Real-Time Bilingual Assistant 🌍", layout="wide")
+st.set_page_config(page_title="Multilingual Assistant 🌍", layout="wide")
 
 set_api_key("YOUR_API_KEY")  # Replace with your ElevenLabs API key
 VOICE_NAME = "Rachel"       # ElevenLabs voice
 model = whisper.load_model("base")
 
+# Supported languages for transcription and translation
+LANGUAGES = {
+    "English": "en",
+    "Spanish": "es",
+    "French": "fr",
+    "German": "de",
+    "Italian": "it",
+    "Portuguese": "pt",
+    "Russian": "ru",
+    "Chinese": "zh",
+    "Japanese": "ja",
+    "Korean": "ko",
+    "Hindi": "hi"
+}
+
 # ---------------- FUNCTIONS ----------------
-def translate_audio(audio_bytes, input_language):
+def translate_audio(audio_bytes, input_lang_code, output_lang_code):
     # Save uploaded audio to a temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
         f.write(audio_bytes)
         temp_audio_path = f.name
 
     # Transcribe audio
-    text = model.transcribe(temp_audio_path, language=input_language)["text"]
-
-    # Determine output language
-    output_language = "en" if input_language == "es" else "es"
+    text = model.transcribe(temp_audio_path, language=input_lang_code)["text"]
 
     # Translate text
-    translation = GoogleTranslator(source=input_language, target=output_language).translate(text)
+    translation = GoogleTranslator(source=input_lang_code, target=output_lang_code).translate(text)
 
     # Generate TTS audio
     audio_out = generate(
@@ -44,22 +55,22 @@ def translate_audio(audio_bytes, input_language):
     return text, translation, tts_file.name
 
 def audio_player(file_path):
-    """Return a Streamlit audio player for a local file."""
     audio_bytes = Path(file_path).read_bytes()
     st.audio(audio_bytes, format="audio/mp3")
 
 # ---------------- STREAMLIT UI ----------------
-st.title("Real-Time Bilingual Assistant 🌍")
-st.write("Speak in Spanish or English, and listen to the translation with realistic voice instantly.")
+st.title("Multilingual Voice Assistant 🌍")
+st.write("Upload audio, select the input and output languages, and hear the translation.")
 
 # Audio input
 audio_input = st.file_uploader("🎙️ Upload your audio (WAV or MP3)", type=["wav", "mp3"])
-input_lang = st.radio("Language you are speaking", ["es", "en"], index=0)
+input_lang = st.selectbox("Select the language you are speaking", list(LANGUAGES.keys()), index=0)
+output_lang = st.selectbox("Select the language for translation", list(LANGUAGES.keys()), index=1)
 
 if audio_input is not None:
     st.info("Processing audio... Please wait.")
     audio_bytes = audio_input.read()
-    text, translation, tts_file_path = translate_audio(audio_bytes, input_lang)
+    text, translation, tts_file_path = translate_audio(audio_bytes, LANGUAGES[input_lang], LANGUAGES[output_lang])
 
     st.subheader("📝 Transcription")
     st.write(text)
