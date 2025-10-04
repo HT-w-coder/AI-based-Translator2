@@ -20,11 +20,13 @@ backoff
 sentry-sdk>=1.45.0
 whisper
 translate
+elevenlabs
 
 # --- (Optional) API support ---
 fastapi
 uvicorn
 prometheus_client
+
 
 
 
