@@ -44,8 +44,21 @@ pip install streamlit transformers langdetect pyttsx3 plotly sacremoses sentence
 **Error**: `No matching distribution found for torch==2.1.0`
 
 **Solution**: 
-- Use `torch>=2.5.0` instead of exact version
+- Use `torch>=2.0.0` instead of exact version
 - Or install latest: `pip install torch --upgrade`
+
+### 2. MarianMTModel Import Error
+**Error**: `ImportError: cannot import name 'MarianMTModel' from 'transformers'`
+
+**Solutions**:
+- **Quick Fix**: Run the fix script: `./fix_imports.sh`
+- **Manual Fix**:
+  ```bash
+  pip uninstall transformers tokenizers -y
+  pip install transformers==4.21.3 tokenizers>=0.13.0 torch
+  ```
+- **Python Version**: Use Python 3.9-3.11 instead of 3.13 if possible
+- **Fallback**: The app will automatically use AutoModel if MarianMT fails
 
 ### 2. Python Version Issues
 **Error**: `Requires-Python <3.5` or similar

@@ -14,9 +14,28 @@ import base64
 import json
 
 import streamlit as st
-from transformers import MarianMTModel, MarianTokenizer
 from langdetect import detect, DetectorFactory
 import torch
+
+# Try different import methods for transformers
+try:
+    from transformers import MarianMTModel, MarianTokenizer
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    try:
+        # Try alternative import path
+        from transformers.models.marian import MarianMTModel, MarianTokenizer
+        TRANSFORMERS_AVAILABLE = True
+    except ImportError:
+        try:
+            # Try even more specific import
+            from transformers import AutoModel, AutoTokenizer
+            MarianMTModel = AutoModel
+            MarianTokenizer = AutoTokenizer
+            TRANSFORMERS_AVAILABLE = True
+        except ImportError:
+            TRANSFORMERS_AVAILABLE = False
+            st.error("Transformers library not properly installed. Please install with: pip install transformers torch")
 import plotly.graph_objects as go
 import plotly.express as px
 
@@ -242,6 +261,10 @@ class MultilingualTranslator:
     @st.cache_resource
     def load_model(_self, source_lang, target_lang):
         """Load translation model and tokenizer for given language pair."""
+        if not TRANSFORMERS_AVAILABLE:
+            st.error("Transformers library not available. Please install with: pip install transformers torch")
+            return False
+            
         model_key = f"{source_lang}_{target_lang}"
         
         if model_key not in _self.models:
@@ -249,8 +272,16 @@ class MultilingualTranslator:
                 model_name = _self.get_model_name(source_lang, target_lang)
                 
                 with st.spinner(f"Loading model for {source_lang} → {target_lang}..."):
-                    tokenizer = MarianTokenizer.from_pretrained(model_name)
-                    model = MarianMTModel.from_pretrained(model_name).to(_self.device)
+                    # Try different loading methods
+                    try:
+                        tokenizer = MarianTokenizer.from_pretrained(model_name)
+                        model = MarianMTModel.from_pretrained(model_name).to(_self.device)
+                    except Exception as e1:
+                        st.warning(f"Failed to load MarianMT model, trying AutoModel: {str(e1)}")
+                        # Fallback to AutoModel
+                        from transformers import AutoTokenizer, AutoModel
+                        tokenizer = AutoTokenizer.from_pretrained(model_name)
+                        model = AutoModel.from_pretrained(model_name).to(_self.device)
                 
                 _self.tokenizers[model_key] = tokenizer
                 _self.models[model_key] = model
@@ -258,6 +289,7 @@ class MultilingualTranslator:
                 return True
             except Exception as e:
                 st.error(f"Error loading model for {source_lang} → {target_lang}: {str(e)}")
+                st.info("Try updating transformers: pip install transformers --upgrade")
                 return False
         
         return True
