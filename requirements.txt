@@ -1,12 +1,12 @@
 streamlit>=1.28.0
-transformers
-torch
+transformers>=4.21.0
+torch>=2.0.0
 torchaudio>=2.0.0
 langdetect>=1.0.9
-sentencepiece
+sentencepiece>=0.1.99
 sacremoses>=0.0.53
 numpy>=1.24.0
 requests>=2.31.0
 plotly>=5.17.0
-gtts
+gtts>=2.3.0
 tokenizers>=0.13.0
