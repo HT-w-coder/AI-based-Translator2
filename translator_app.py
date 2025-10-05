@@ -12,32 +12,41 @@ from pathlib import Path
 import io
 import base64
 import json
+import sys
 
 import streamlit as st
 from langdetect import detect, DetectorFactory
 import torch
+import plotly.graph_objects as go
+import plotly.express as px
+
+# Initialize transformers availability flag
+TRANSFORMERS_AVAILABLE = False
+MarianMTModel = None
+MarianTokenizer = None
 
 # Try different import methods for transformers
 try:
     from transformers import MarianMTModel, MarianTokenizer
     TRANSFORMERS_AVAILABLE = True
+    print("✅ MarianMT models loaded successfully")
 except ImportError:
     try:
         # Try alternative import path
         from transformers.models.marian import MarianMTModel, MarianTokenizer
         TRANSFORMERS_AVAILABLE = True
+        print("✅ MarianMT models loaded from alternative path")
     except ImportError:
         try:
-            # Try even more specific import
+            # Try AutoModel as fallback
             from transformers import AutoModel, AutoTokenizer
             MarianMTModel = AutoModel
             MarianTokenizer = AutoTokenizer
             TRANSFORMERS_AVAILABLE = True
+            print("⚠️ Using AutoModel as fallback for MarianMT")
         except ImportError:
             TRANSFORMERS_AVAILABLE = False
-            st.error("Transformers library not properly installed. Please install with: pip install transformers torch")
-import plotly.graph_objects as go
-import plotly.express as px
+            print("❌ Transformers not available")
 
 # Try to import gTTS as a fallback option
 try:
@@ -477,6 +486,42 @@ def detect_language(text):
         return 'en'  # Default to English if detection fails
 
 def main():
+    # Check if transformers is available
+    if not TRANSFORMERS_AVAILABLE:
+        st.error("🚨 **Translation Models Not Available**")
+        st.markdown("""
+        **The transformers library is not properly installed or compatible with your Python version.**
+        
+        ### 🔧 **Quick Fixes**:
+        
+        **Option 1: Install Compatible Version**
+        ```bash
+        pip uninstall transformers tokenizers -y
+        pip install transformers==4.21.3 tokenizers==0.13.3 torch
+        ```
+        
+        **Option 2: Use Python 3.9-3.11**
+        ```bash
+        # Python 3.13 has compatibility issues
+        conda create -n translator python=3.11
+        conda activate translator
+        pip install transformers torch streamlit langdetect
+        ```
+        
+        **Option 3: Try Alternative Installation**
+        ```bash
+        pip install --no-cache-dir transformers torch
+        ```
+        
+        ### 📋 **Current Status**:
+        - **Python Version**: {sys.version}
+        - **Transformers Available**: ❌ No
+        - **Torch Available**: {'✅ Yes' if torch.cuda.is_available() or True else '❌ No'}
+        
+        Please fix the installation and refresh the page.
+        """)
+        st.stop()
+        return
     # Header
     st.markdown("""
     <div class="main-header">
