@@ -165,34 +165,111 @@ st.markdown("""
 </style>
 
 <script>
-// Web Speech API Text-to-Speech functionality
-window.speechSynthesis = window.speechSynthesis || {};
+// Enhanced Web Speech API Text-to-Speech functionality for Streamlit
+let currentUtterance = null;
 
 function speakText(text, lang, rate = 1, pitch = 1) {
     // Stop any ongoing speech
-    window.speechSynthesis.cancel();
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
     
     if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = getVoiceLanguage(lang);
-        utterance.rate = rate;
-        utterance.pitch = pitch;
-        utterance.volume = 1;
-        
-        // Try to find a voice for the specified language
-        const voices = window.speechSynthesis.getVoices();
-        const voice = voices.find(v => v.lang.startsWith(utterance.lang));
-        if (voice) {
-            utterance.voice = voice;
+        try {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = getVoiceLanguage(lang);
+            utterance.rate = rate;
+            utterance.pitch = pitch;
+            utterance.volume = 1;
+            
+            // Wait for voices to be loaded
+            if (window.speechSynthesis.getVoices().length === 0) {
+                window.speechSynthesis.addEventListener('voiceschanged', function() {
+                    setVoiceAndSpeak(utterance, lang, text);
+                }, { once: true });
+            } else {
+                setVoiceAndSpeak(utterance, lang, text);
+            }
+            
+        } catch (error) {
+            console.error('Speech synthesis error:', error);
+            alert('Speech synthesis failed: ' + error.message);
         }
-        
-        window.speechSynthesis.speak(utterance);
-        
-        return true;
     } else {
-        alert('Text-to-speech is not supported in your browser');
-        return false;
+        alert('Text-to-speech is not supported in your browser. Please use Chrome, Firefox, Safari, or Edge.');
     }
+}
+
+function setVoiceAndSpeak(utterance, lang, text) {
+    // Try to find a voice for the specified language
+    const voices = window.speechSynthesis.getVoices();
+    const preferredLang = getVoiceLanguage(lang);
+    
+    // Find the best matching voice
+    let selectedVoice = voices.find(voice => 
+        voice.lang === preferredLang || voice.lang.startsWith(lang)
+    );
+    
+    // Fallback to any voice with similar language code
+    if (!selectedVoice) {
+        selectedVoice = voices.find(voice => 
+            voice.lang.startsWith(lang.split('-')[0])
+        );
+    }
+    
+    // Final fallback to default voice
+    if (!selectedVoice && voices.length > 0) {
+        selectedVoice = voices[0];
+    }
+    
+    if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        console.log('Using voice:', selectedVoice.name, 'for language:', lang);
+    }
+    
+    // Add event listeners
+    utterance.onstart = function() {
+        console.log('Speech started');
+        // Visual feedback
+        const buttons = document.querySelectorAll('.tts-button');
+        buttons.forEach(btn => {
+            if (btn.textContent.includes('Browser TTS')) {
+                btn.style.backgroundColor = '#10b981';
+                btn.textContent = '🔊 Speaking...';
+            }
+        });
+    };
+    
+    utterance.onend = function() {
+        console.log('Speech ended');
+        // Reset button appearance
+        const buttons = document.querySelectorAll('.tts-button');
+        buttons.forEach(btn => {
+            if (btn.textContent.includes('Speaking')) {
+                btn.style.backgroundColor = '';
+                btn.innerHTML = '🔊 Browser TTS';
+            }
+        });
+    };
+    
+    utterance.onerror = function(event) {
+        console.error('Speech error:', event.error);
+        alert('Speech failed: ' + event.error);
+        // Reset button appearance
+        const buttons = document.querySelectorAll('.tts-button');
+        buttons.forEach(btn => {
+            if (btn.textContent.includes('Speaking')) {
+                btn.style.backgroundColor = '';
+                btn.innerHTML = '🔊 Browser TTS';
+            }
+        });
+    };
+    
+    // Store current utterance
+    currentUtterance = utterance;
+    
+    // Speak the text
+    window.speechSynthesis.speak(utterance);
 }
 
 function getVoiceLanguage(langCode) {
@@ -216,13 +293,32 @@ function getVoiceLanguage(langCode) {
 function stopSpeech() {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
+        console.log('Speech stopped');
+        
+        // Reset all buttons
+        const buttons = document.querySelectorAll('.tts-button');
+        buttons.forEach(btn => {
+            if (btn.textContent.includes('Speaking')) {
+                btn.style.backgroundColor = '';
+                btn.innerHTML = btn.innerHTML.replace('Speaking...', 'Browser TTS');
+            }
+        });
     }
 }
 
-// Ensure voices are loaded
-window.speechSynthesis.onvoiceschanged = function() {
-    console.log('Voices loaded:', window.speechSynthesis.getVoices().length);
-};
+// Initialize voices when page loads
+window.addEventListener('load', function() {
+    if ('speechSynthesis' in window) {
+        // Trigger voice loading
+        window.speechSynthesis.getVoices();
+        
+        // Listen for voice changes
+        window.speechSynthesis.addEventListener('voiceschanged', function() {
+            const voices = window.speechSynthesis.getVoices();
+            console.log('Voices loaded:', voices.length);
+        });
+    }
+});
 </script>
 """, unsafe_allow_html=True)
 
@@ -360,24 +456,41 @@ class TextToSpeech:
     def __init__(self):
         self.available = True  # Web Speech API is available in most browsers
         
-    def create_speech_button(self, text, language_code, button_text="🔊 Speak"):
+    def create_speech_button(self, text, language_code, button_text="🔊 Speak", key_suffix=""):
         """Create a button that uses Web Speech API for text-to-speech."""
         if not text.strip():
-            return st.button(button_text, disabled=True)
+            st.button(button_text, disabled=True, key=f"tts_disabled_{key_suffix}")
+            return
         
-        # Create unique key for this button
-        button_key = f"tts_{hash(text)}{language_code}"
+        # Clean text for JavaScript (escape quotes and newlines)
+        clean_text = text.replace("'", "\\'").replace('"', '\\"').replace('\n', ' ').replace('\r', ' ')
         
-        # JavaScript to handle TTS
-        speech_js = f"""
-        <button onclick="speakText('{text.replace("'", "\\'")}', '{language_code}')" 
-                class="tts-button" 
-                title="Click to speak this text">
-            {button_text}
-        </button>
+        # Create a unique button with inline onclick
+        button_html = f"""
+        <div style="margin: 5px 0;">
+            <button onclick="speakText('{clean_text}', '{language_code}')" 
+                    class="tts-button" 
+                    style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        border: none;
+                        border-radius: 8px;
+                        color: white;
+                        padding: 10px 20px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: 500;
+                        transition: all 0.3s ease;
+                        margin: 4px;
+                    "
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';"
+                    onmouseout="this.style.transform=''; this.style.boxShadow='';"
+                    title="Click to speak this text using your browser's text-to-speech">
+                {button_text}
+            </button>
+        </div>
         """
         
-        st.markdown(speech_js, unsafe_allow_html=True)
+        st.markdown(button_html, unsafe_allow_html=True)
         
     def create_audio_from_text(self, text, language_code):
         """Create an audio file using gTTS if available."""
@@ -423,23 +536,38 @@ class TextToSpeech:
             st.info("Enter text to enable speech synthesis")
             return
             
-        col1, col2, col3 = st.columns([1, 1, 1])
+        # Create columns for TTS options
+        col1, col2, col3 = st.columns([2, 1, 2])
         
         with col1:
             # Web Speech API button (works in browser)
-            self.create_speech_button(text, language_code, "🔊 Browser TTS")
+            self.create_speech_button(text, language_code, "🔊 Browser TTS", f"browser_{unique_key}")
         
         with col2:
             # Stop speech button
-            stop_js = """
-            <button onclick="stopSpeech()" 
-                    class="tts-button" 
-                    style="background: #ef4444;"
-                    title="Stop speech">
-                ⏹️ Stop
-            </button>
+            stop_html = """
+            <div style="margin: 5px 0;">
+                <button onclick="stopSpeech()" 
+                        style="
+                            background: #ef4444;
+                            border: none;
+                            border-radius: 8px;
+                            color: white;
+                            padding: 10px 16px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            font-weight: 500;
+                            transition: all 0.3s ease;
+                            margin: 4px;
+                        "
+                        onmouseover="this.style.transform='translateY(-2px)';"
+                        onmouseout="this.style.transform='';"
+                        title="Stop current speech">
+                    ⏹️ Stop
+                </button>
+            </div>
             """
-            st.markdown(stop_js, unsafe_allow_html=True)
+            st.markdown(stop_html, unsafe_allow_html=True)
         
         with col3:
             # gTTS audio file generation (if available)
@@ -452,10 +580,23 @@ class TextToSpeech:
                             
                             # Create download link
                             b64 = base64.b64encode(audio_data).decode()
-                            href = f'<a href="data:audio/mp3;base64,{b64}" download="speech.mp3">Download MP3</a>'
+                            href = f'<a href="data:audio/mp3;base64,{b64}" download="speech.mp3" style="color: #667eea; text-decoration: none;">📥 Download MP3</a>'
                             st.markdown(href, unsafe_allow_html=True)
             else:
                 st.info("Install gTTS for audio download: `pip install gtts`")
+                
+        # Add some helpful info
+        st.caption("💡 Browser TTS works instantly. Download creates an MP3 file.")
+        
+        # Test browser compatibility
+        st.markdown("""
+        <script>
+        // Quick compatibility check
+        if (!('speechSynthesis' in window)) {
+            document.write('<div style="color: #ef4444; font-size: 12px;">⚠️ Browser TTS not supported. Try Chrome, Firefox, Safari, or Edge.</div>');
+        }
+        </script>
+        """, unsafe_allow_html=True)
     
     def get_supported_languages(self):
         """Get list of supported languages for TTS."""
@@ -776,7 +917,8 @@ def main():
                         st.session_state.tts_engine.create_speech_button(
                             item['translated'], 
                             item['target_lang'], 
-                            "🔊 Speak"
+                            "🔊 Speak",
+                            f"hist_{i}"
                         )
         else:
             st.info("No translations yet. Start translating to see history here!")
