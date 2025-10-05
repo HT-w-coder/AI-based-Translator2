@@ -151,9 +151,9 @@ class MultilingualTranslator:
         self.tokenizers = {}
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        # Supported language pairs for translation
+        # Updated supported language pairs with working model names
         self.supported_pairs = {
-            'en': ['es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ko', 'ar', 'hi'],
+            'en': ['es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ar', 'hi', 'nl', 'sv', 'da', 'no'],
             'es': ['en', 'fr', 'de', 'it', 'pt'],
             'fr': ['en', 'es', 'de', 'it', 'pt'],
             'de': ['en', 'es', 'fr', 'it', 'pt'],
@@ -162,12 +162,15 @@ class MultilingualTranslator:
             'ru': ['en'],
             'zh': ['en'],
             'ja': ['en'],
-            'ko': ['en'],
             'ar': ['en'],
-            'hi': ['en']
+            'hi': ['en'],
+            'nl': ['en'],
+            'sv': ['en'],
+            'da': ['en'],
+            'no': ['en']
         }
         
-        # Language names
+        # Language names (updated to remove unsupported Korean)
         self.language_names = {
             'en': 'English',
             'es': 'Spanish',
@@ -178,16 +181,61 @@ class MultilingualTranslator:
             'ru': 'Russian',
             'zh': 'Chinese',
             'ja': 'Japanese',
-            'ko': 'Korean',
             'ar': 'Arabic',
-            'hi': 'Hindi'
+            'hi': 'Hindi',
+            'nl': 'Dutch',
+            'sv': 'Swedish',
+            'da': 'Danish',
+            'no': 'Norwegian'
+        }
+        
+        # Model availability check - some models may not exist
+        self.unavailable_models = {
+            'en-ko': 'Korean translation not available - model does not exist',
+            'ko-en': 'Korean translation not available - model does not exist'
         }
         
     def get_model_name(self, source_lang, target_lang):
         """Get the appropriate model name for translation."""
+        # Check if this model combination is known to be unavailable
+        model_key = f"{source_lang}-{target_lang}"
+        if model_key in self.unavailable_models:
+            raise ValueError(self.unavailable_models[model_key])
+        
+        # Special handling for Chinese
         if source_lang == 'zh':
             source_lang = 'zh_cn'
+        if target_lang == 'zh':
+            target_lang = 'zh_cn'
+            
+        # Check for known working models first
+        working_models = {
+            'en-es': 'Helsinki-NLP/opus-mt-en-es',
+            'en-fr': 'Helsinki-NLP/opus-mt-en-fr', 
+            'en-de': 'Helsinki-NLP/opus-mt-en-de',
+            'en-it': 'Helsinki-NLP/opus-mt-en-it',
+            'en-pt': 'Helsinki-NLP/opus-mt-en-pt',
+            'en-ru': 'Helsinki-NLP/opus-mt-en-ru',
+            'en-zh_cn': 'Helsinki-NLP/opus-mt-en-zh',
+            'en-ja': 'Helsinki-NLP/opus-mt-en-jap',
+            'en-ar': 'Helsinki-NLP/opus-mt-en-ar',
+            'en-hi': 'Helsinki-NLP/opus-mt-en-hi',
+            'es-en': 'Helsinki-NLP/opus-mt-es-en',
+            'fr-en': 'Helsinki-NLP/opus-mt-fr-en',
+            'de-en': 'Helsinki-NLP/opus-mt-de-en',
+            'it-en': 'Helsinki-NLP/opus-mt-it-en',
+            'pt-en': 'Helsinki-NLP/opus-mt-pt-en',
+            'ru-en': 'Helsinki-NLP/opus-mt-ru-en',
+            'zh_cn-en': 'Helsinki-NLP/opus-mt-zh-en',
+            'ja-en': 'Helsinki-NLP/opus-mt-jap-en',
+            'ar-en': 'Helsinki-NLP/opus-mt-ar-en'
+        }
         
+        model_key = f"{source_lang}-{target_lang}"
+        if model_key in working_models:
+            return working_models[model_key]
+        
+        # Default pattern for other models
         model_name = f"Helsinki-NLP/opus-mt-{source_lang}-{target_lang}"
         return model_name
     
@@ -210,19 +258,21 @@ class MultilingualTranslator:
                         tokenizer = MarianTokenizer.from_pretrained(model_name)
                         model = MarianMTModel.from_pretrained(model_name).to(_self.device)
                     except Exception as e1:
-                        st.warning(f"Failed to load MarianMT model, trying AutoModel: {str(e1)}")
-                        # Fallback to AutoModel
-                        from transformers import AutoTokenizer, AutoModel
-                        tokenizer = AutoTokenizer.from_pretrained(model_name)
-                        model = AutoModel.from_pretrained(model_name).to(_self.device)
+                        st.warning(f"Failed to load MarianMT model: {str(e1)}")
+                        # Don't try AutoModel for translation - it won't work well
+                        return False
                 
                 _self.tokenizers[model_key] = tokenizer
                 _self.models[model_key] = model
                 
                 return True
+            except ValueError as ve:
+                # This is our custom error for unavailable models
+                st.error(f"Model not available: {str(ve)}")
+                return False
             except Exception as e:
                 st.error(f"Error loading model for {source_lang} → {target_lang}: {str(e)}")
-                st.info("Try updating transformers: pip install transformers --upgrade")
+                st.info("This language pair may not have an available translation model.")
                 return False
         
         return True
@@ -232,6 +282,11 @@ class MultilingualTranslator:
         if source_lang == target_lang:
             return text
         
+        # Check if this specific model is known to be unavailable
+        model_key = f"{source_lang}-{target_lang}"
+        if model_key in self.unavailable_models:
+            return f"❌ {self.unavailable_models[model_key]}"
+        
         # Check if translation pair is supported
         if source_lang not in self.supported_pairs or target_lang not in self.supported_pairs[source_lang]:
             # Try reverse translation through English
@@ -239,16 +294,18 @@ class MultilingualTranslator:
                 try:
                     # Translate to English first
                     english_text = self.translate(text, source_lang, 'en')
+                    if english_text.startswith("❌"):
+                        return english_text  # Return the error message
                     # Then translate from English to target
                     return self.translate(english_text, 'en', target_lang)
                 except:
-                    return f"Translation not supported for {source_lang} → {target_lang}"
+                    return f"❌ Translation not available for {source_lang} → {target_lang}"
             else:
-                return f"Translation not supported for {source_lang} → {target_lang}"
+                return f"❌ Translation not available for {source_lang} → {target_lang}"
         
         # Load model if not already loaded
         if not self.load_model(source_lang, target_lang):
-            return "Error: Could not load translation model"
+            return "❌ Error: Could not load translation model"
         
         model_key = f"{source_lang}_{target_lang}"
         
@@ -269,7 +326,7 @@ class MultilingualTranslator:
             return translated_text
             
         except Exception as e:
-            return f"Translation error: {str(e)}"
+            return f"❌ Translation error: {str(e)}"
 
 class TextToSpeech:
     """Handles text-to-speech conversion using Web Speech API and gTTS fallback."""
