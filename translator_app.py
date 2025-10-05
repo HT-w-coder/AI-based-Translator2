@@ -777,49 +777,94 @@ def main():
         
         # Text-to-Speech section for input
         if input_text.strip():
-            st.subheader("🎵 Text-to-Speech - Original")
-            actual_source_lang = source_lang if source_lang != "auto" else detect_language(input_text)
-            st.session_state.tts_engine.display_tts_options(input_text, actual_source_lang, "original")
+            try:
+                st.subheader("🎵 Text-to-Speech - Original")
+                actual_source_lang = source_lang if source_lang != "auto" else detect_language(input_text)
+                st.session_state.tts_engine.display_tts_options(input_text, actual_source_lang, "original")
+            except Exception as tts_error:
+                st.warning(f"TTS for original text not available: {tts_error}")
         
         # Translation logic
         if translate_btn and input_text.strip():
-            with st.spinner("Translating..."):
-                # Detect source language if auto
-                actual_source_lang = source_lang
-                if source_lang == "auto":
-                    actual_source_lang = detect_language(input_text)
+            try:
+                with st.spinner("Translating..."):
+                    # Detect source language if auto
+                    actual_source_lang = source_lang
+                    if source_lang == "auto":
+                        try:
+                            actual_source_lang = detect_language(input_text)
+                        except Exception as e:
+                            st.warning(f"Language detection failed: {e}. Using English as default.")
+                            actual_source_lang = 'en'
+                    
+                    # Perform translation
+                    try:
+                        translated_text = st.session_state.translator.translate(
+                            input_text, actual_source_lang, target_lang
+                        )
+                        
+                        # Check if translation failed
+                        if translated_text.startswith("❌"):
+                            st.error(translated_text)
+                            st.info("Please try a different language pair or check the language support documentation.")
+                        else:
+                            # Display translation
+                            st.subheader("📝 Translation Result")
+                            st.markdown(f'<div class="translation-box">{translated_text}</div>', unsafe_allow_html=True)
+                            
+                            # Add to history with error handling
+                            try:
+                                history_item = {
+                                    'timestamp': time.time(),
+                                    'original': input_text,
+                                    'translated': translated_text,
+                                    'source_lang': actual_source_lang,
+                                    'target_lang': target_lang,
+                                    'source_name': languages.get(actual_source_lang, actual_source_lang),
+                                    'target_name': languages.get(target_lang, target_lang)
+                                }
+                                
+                                # Ensure translation_history exists
+                                if 'translation_history' not in st.session_state:
+                                    st.session_state.translation_history = []
+                                    
+                                st.session_state.translation_history.insert(0, history_item)
+                                
+                                # Keep only last 10 translations
+                                if len(st.session_state.translation_history) > 10:
+                                    st.session_state.translation_history = st.session_state.translation_history[:10]
+                                    
+                            except Exception as history_error:
+                                st.warning(f"Could not save to history: {history_error}")
+                            
+                            # Display translation in code block for easy copying
+                            st.code(translated_text, language=None)
+                            
+                            # Text-to-Speech for translation
+                            try:
+                                st.subheader("🎵 Text-to-Speech - Translation")
+                                st.session_state.tts_engine.display_tts_options(translated_text, target_lang, "translation")
+                            except Exception as tts_error:
+                                st.warning(f"TTS not available: {tts_error}")
+                                
+                    except Exception as translation_error:
+                        st.error(f"Translation failed: {str(translation_error)}")
+                        st.info("Please try again or use a different language pair.")
+                        
+            except Exception as general_error:
+                st.error(f"An unexpected error occurred: {str(general_error)}")
+                st.info("Please refresh the page and try again.")
                 
-                # Perform translation
-                translated_text = st.session_state.translator.translate(
-                    input_text, actual_source_lang, target_lang
-                )
-                
-                # Display translation
-                st.subheader("📝 Translation Result")
-                st.markdown(f'<div class="translation-box">{translated_text}</div>', unsafe_allow_html=True)
-                
-                # Add to history
-                history_item = {
-                    'timestamp': time.time(),
-                    'original': input_text,
-                    'translated': translated_text,
-                    'source_lang': actual_source_lang,
-                    'target_lang': target_lang,
-                    'source_name': languages.get(actual_source_lang, actual_source_lang),
-                    'target_name': languages.get(target_lang, target_lang)
-                }
-                st.session_state.translation_history.insert(0, history_item)
-                
-                # Keep only last 10 translations
-                if len(st.session_state.translation_history) > 10:
-                    st.session_state.translation_history = st.session_state.translation_history[:10]
-                
-                # Display translation in code block for easy copying
-                st.code(translated_text, language=None)
-                
-                # Text-to-Speech for translation
-                st.subheader("🎵 Text-to-Speech - Translation")
-                st.session_state.tts_engine.display_tts_options(translated_text, target_lang, "translation")
+                # Debug information
+                with st.expander("🔍 Debug Information"):
+                    st.write(f"Error type: {type(general_error).__name__}")
+                    st.write(f"Error details: {str(general_error)}")
+                    st.write(f"Input text length: {len(input_text)}")
+                    st.write(f"Source language: {actual_source_lang if 'actual_source_lang' in locals() else 'Unknown'}")
+                    st.write(f"Target language: {target_lang}")
+                    
+                    # Check session state
+                    st.write("Session state keys:", list(st.session_state.keys()))
         
     
     with col2:
@@ -827,27 +872,35 @@ def main():
         
         if st.session_state.translation_history:
             for i, item in enumerate(st.session_state.translation_history):
-                with st.expander(f"{item['source_name']} → {item['target_name']}", expanded=i==0):
-                    st.write(f"**Original:** {item['original'][:100]}...")
-                    st.write(f"**Translation:** {item['translated'][:100]}...")
-                    
-                    timestamp = time.strftime('%H:%M:%S', time.localtime(item['timestamp']))
-                    st.caption(f"🕐 {timestamp}")
-                    
-                    # Quick actions
-                    col_hist1, col_hist2 = st.columns([1, 1])
-                    with col_hist1:
-                        if st.button("📋 Copy", key=f"copy_{i}"):
-                            st.code(item['translated'])
-                    
-                    with col_hist2:
-                        # Use Web Speech API for history items
-                        st.session_state.tts_engine.create_speech_button(
-                            item['translated'], 
-                            item['target_lang'], 
-                            "🔊 Speak",
-                            f"hist_{i}"
-                        )
+                try:
+                    with st.expander(f"{item['source_name']} → {item['target_name']}", expanded=i==0):
+                        st.write(f"**Original:** {item['original'][:100]}...")
+                        st.write(f"**Translation:** {item['translated'][:100]}...")
+                        
+                        timestamp = time.strftime('%H:%M:%S', time.localtime(item['timestamp']))
+                        st.caption(f"🕐 {timestamp}")
+                        
+                        # Quick actions
+                        col_hist1, col_hist2 = st.columns([1, 1])
+                        with col_hist1:
+                            if st.button("📋 Copy", key=f"copy_{i}"):
+                                st.code(item['translated'])
+                        
+                        with col_hist2:
+                            try:
+                                # Use Web Speech API for history items
+                                st.session_state.tts_engine.create_speech_button(
+                                    item['translated'], 
+                                    item['target_lang'], 
+                                    "🔊 Speak",
+                                    f"hist_{i}"
+                                )
+                            except Exception as hist_tts_error:
+                                st.caption(f"TTS not available: {hist_tts_error}")
+                                
+                except Exception as history_display_error:
+                    st.error(f"Error displaying history item {i}: {history_display_error}")
+                    continue
         else:
             st.info("No translations yet. Start translating to see history here!")
     
