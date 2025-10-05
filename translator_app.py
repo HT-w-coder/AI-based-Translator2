@@ -20,33 +20,43 @@ import torch
 import plotly.graph_objects as go
 import plotly.express as px
 
-# Initialize transformers availability flag
+# Set seed for consistent language detection
+DetectorFactory.seed = 0
+
+# Initialize transformers availability flags
 TRANSFORMERS_AVAILABLE = False
 MarianMTModel = None
 MarianTokenizer = None
 
-# Try different import methods for transformers
-try:
-    from transformers import MarianMTModel, MarianTokenizer
-    TRANSFORMERS_AVAILABLE = True
-    print("✅ MarianMT models loaded successfully")
-except ImportError:
+# Try to import transformers with multiple fallback options
+def initialize_transformers():
+    global TRANSFORMERS_AVAILABLE, MarianMTModel, MarianTokenizer
+    
     try:
-        # Try alternative import path
-        from transformers.models.marian import MarianMTModel, MarianTokenizer
+        # Try primary import
+        from transformers import MarianMTModel, MarianTokenizer
         TRANSFORMERS_AVAILABLE = True
-        print("✅ MarianMT models loaded from alternative path")
-    except ImportError:
+        return True, "MarianMT models loaded successfully"
+    except ImportError as e1:
         try:
-            # Try AutoModel as fallback
-            from transformers import AutoModel, AutoTokenizer
-            MarianMTModel = AutoModel
-            MarianTokenizer = AutoTokenizer
+            # Try alternative import path
+            from transformers.models.marian import MarianMTModel, MarianTokenizer  
             TRANSFORMERS_AVAILABLE = True
-            print("⚠️ Using AutoModel as fallback for MarianMT")
-        except ImportError:
-            TRANSFORMERS_AVAILABLE = False
-            print("❌ Transformers not available")
+            return True, "MarianMT models loaded from alternative path"
+        except ImportError as e2:
+            try:
+                # Try AutoModel as fallback
+                from transformers import AutoModel, AutoTokenizer
+                MarianMTModel = AutoModel
+                MarianTokenizer = AutoTokenizer
+                TRANSFORMERS_AVAILABLE = True
+                return True, "Using AutoModel as fallback for MarianMT"
+            except ImportError as e3:
+                TRANSFORMERS_AVAILABLE = False
+                return False, f"All transformers imports failed: {str(e1)}"
+
+# Initialize transformers
+transformers_success, transformers_message = initialize_transformers()
 
 # Try to import gTTS as a fallback option
 try:
@@ -54,9 +64,6 @@ try:
     GTTS_AVAILABLE = True
 except ImportError:
     GTTS_AVAILABLE = False
-
-# Set seed for consistent language detection
-DetectorFactory.seed = 0
 
 # Page configuration
 st.set_page_config(
@@ -468,8 +475,19 @@ class TextToSpeech:
         }
 
 # Initialize session state
-if 'translator' not in st.session_state:
+if 'translator' not in st.session_state and TRANSFORMERS_AVAILABLE:
     st.session_state.translator = MultilingualTranslator()
+elif 'translator' not in st.session_state:
+    # Create a dummy translator for when transformers isn't available
+    class DummyTranslator:
+        def __init__(self):
+            self.device = "cpu"
+            self.language_names = {
+                'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
+                'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'zh': 'Chinese',
+                'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi'
+            }
+    st.session_state.translator = DummyTranslator()
     
 if 'tts_engine' not in st.session_state:
     st.session_state.tts_engine = TextToSpeech()
@@ -486,42 +504,83 @@ def detect_language(text):
         return 'en'  # Default to English if detection fails
 
 def main():
-    # Check if transformers is available
+    # Check transformers status and show helpful error if needed
     if not TRANSFORMERS_AVAILABLE:
         st.error("🚨 **Translation Models Not Available**")
-        st.markdown("""
-        **The transformers library is not properly installed or compatible with your Python version.**
         
-        ### 🔧 **Quick Fixes**:
+        st.markdown(f"""
+        **Issue**: `{transformers_message}`
         
-        **Option 1: Install Compatible Version**
-        ```bash
-        pip uninstall transformers tokenizers -y
-        pip install transformers==4.21.3 tokenizers==0.13.3 torch
-        ```
+        **Your System**:
+        - 🐍 **Python Version**: `{sys.version.split()[0]}`
+        - 🔧 **Platform**: `{sys.platform}`
         
-        **Option 2: Use Python 3.9-3.11**
-        ```bash
-        # Python 3.13 has compatibility issues
-        conda create -n translator python=3.11
-        conda activate translator
-        pip install transformers torch streamlit langdetect
-        ```
-        
-        **Option 3: Try Alternative Installation**
-        ```bash
-        pip install --no-cache-dir transformers torch
-        ```
-        
-        ### 📋 **Current Status**:
-        - **Python Version**: {sys.version}
-        - **Transformers Available**: ❌ No
-        - **Torch Available**: {'✅ Yes' if torch.cuda.is_available() or True else '❌ No'}
-        
-        Please fix the installation and refresh the page.
+        ### 🛠️ **EMERGENCY FIXES** (Try in order):
         """)
-        st.stop()
-        return
+        
+        # Show different fixes based on Python version
+        python_version = sys.version_info
+        if python_version >= (3, 13):
+            st.warning("⚠️ **Python 3.13 Detected** - Known compatibility issues with transformers")
+            st.markdown("""
+            **Quick Fix for Python 3.13:**
+            ```bash
+            # Option 1: Use exact compatible versions
+            pip uninstall transformers tokenizers torch -y
+            pip install torch==2.0.1 transformers==4.21.3 tokenizers==0.13.3
+            
+            # Option 2: Switch to Python 3.11 (Recommended)
+            conda create -n translator python=3.11
+            conda activate translator
+            pip install -r requirements.txt
+            ```
+            """)
+        else:
+            st.markdown("""
+            **Standard Fix:**
+            ```bash
+            pip uninstall transformers tokenizers -y
+            pip install transformers==4.21.3 tokenizers==0.13.3
+            ```
+            """)
+        
+        st.markdown("""
+        **Alternative Solutions:**
+        
+        **🚀 Use Emergency Fix Script:**
+        ```bash
+        ./emergency_fix.sh
+        ```
+        
+        **🔍 Try Debug Mode:**
+        ```bash
+        streamlit run debug_app.py
+        ```
+        
+        **📋 Use Fixed Requirements:**
+        ```bash
+        pip install -r requirements-fixed.txt
+        ```
+        
+        ### 🧪 **Test Your Fix:**
+        ```bash
+        python -c "from transformers import MarianMTModel; print('✅ SUCCESS!')"
+        ```
+        """)
+        
+        # Still show TTS functionality even if translation fails
+        st.markdown("---")
+        st.header("🎵 Text-to-Speech Still Works!")
+        st.info("Even without translation models, you can still use the text-to-speech feature")
+        
+        tts_text = st.text_area("Enter text to speak:", "Hello! The text-to-speech feature works even without translation models.", height=100)
+        
+        if tts_text.strip():
+            # Create TTS engine instance
+            tts_engine = TextToSpeech()
+            tts_engine.display_tts_options(tts_text, 'en', 'emergency_mode')
+        
+        st.stop()  # Stop execution here if transformers not available
     # Header
     st.markdown("""
     <div class="main-header">
@@ -534,13 +593,22 @@ def main():
     with st.sidebar:
         st.header("🔧 Settings")
         
-        # Device info
-        device = "🖥️ CPU" if st.session_state.translator.device == "cpu" else "🚀 GPU"
-        st.info(f"**Device:** {device}")
-        
-        # TTS status
-        tts_status = "✅ Web Speech API + gTTS" if GTTS_AVAILABLE else "✅ Web Speech API"
-        st.info(f"**Text-to-Speech:** {tts_status}")
+        # TTS status - show even if transformers fails
+        if TRANSFORMERS_AVAILABLE:
+            tts_status = "✅ Web Speech API + gTTS" if GTTS_AVAILABLE else "✅ Web Speech API"
+            st.info(f"**Text-to-Speech:** {tts_status}")
+            
+            # Device info
+            device = "🖥️ CPU" if st.session_state.translator.device == "cpu" else "🚀 GPU"
+            st.info(f"**Device:** {device}")
+            
+            # Translation status
+            st.success(f"**Translation:** ✅ {transformers_message}")
+        else:
+            st.error("**Translation:** ❌ Models not available")
+            tts_status = "✅ Web Speech API + gTTS" if GTTS_AVAILABLE else "✅ Web Speech API"  
+            st.info(f"**Text-to-Speech:** {tts_status}")
+            st.info("**Device:** 🖥️ CPU")
         
         # Language statistics
         st.subheader("📊 Supported Languages")
